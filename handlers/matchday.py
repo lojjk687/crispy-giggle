@@ -138,38 +138,47 @@ def _build_match_report(
     season: int,
 ) -> str:
     """Format the match result as a Russian telegram message."""
-    home_goals = result.home_goals if hasattr(result, "home_goals") else result.get("home_goals", 0)
-    away_goals = result.away_goals if hasattr(result, "away_goals") else result.get("away_goals", 0)
+    home_goals = getattr(result, "home_goals", 0)
+    away_goals = getattr(result, "away_goals", 0)
 
     # Goals narrative
-    scorers_raw = result.scorers if hasattr(result, "scorers") else result.get("scorers", [])
-    home_scorers = [s for s in scorers_raw if s.get("club") in (home_name, "home") or s.get("side") == "home"]
-    away_scorers = [s for s in scorers_raw if s.get("club") in (away_name, "away") or s.get("side") == "away"]
+    scorers_raw = getattr(result, "scorers", [])
+    home_scorers = [s for s in scorers_raw if isinstance(s, dict) and (s.get("club") in (home_name, "home") or s.get("side") == "home")]
+    away_scorers = [s for s in scorers_raw if isinstance(s, dict) and (s.get("club") in (away_name, "away") or s.get("side") == "away")]
 
     def _scorer_lines(scorer_list: list[dict]) -> str:
         lines = []
         for s in scorer_list:
-            name = s.get("name") or s.get("player_name", "?")
-            minute = s.get("minute", "?")
+            if isinstance(s, dict):
+                name = s.get("name") or s.get("player_name", "?")
+                minute = s.get("minute", "?")
+            else:
+                name = getattr(s, "player_name", getattr(s, "name", "?"))
+                minute = getattr(s, "minute", "?")
             lines.append(f"    • {name} — {minute}'")
         return "\n".join(lines) if lines else "    —"
 
     # Cards
-    yellows_raw = result.yellow_cards if hasattr(result, "yellow_cards") else result.get("yellow_cards", [])
-    reds_raw = result.red_cards if hasattr(result, "red_cards") else result.get("red_cards", [])
-    injuries_raw = result.injuries if hasattr(result, "injuries") else result.get("injuries", [])
+    yellows_raw = getattr(result, "yellow_cards", [])
+    reds_raw = getattr(result, "red_cards", [])
+    injuries_raw = getattr(result, "injuries", [])
 
     def _names(lst: list) -> str:
-        names = [item.get("name") or item.get("player_name", "?") for item in lst]
+        names = []
+        for item in lst:
+            if isinstance(item, dict):
+                names.append(item.get("name") or item.get("player_name", "?"))
+            else:
+                names.append(getattr(item, "player_name", getattr(item, "name", "?")))
         return ", ".join(names) if names else "нет"
 
     # Stats
-    pos_home = result.possession_home if hasattr(result, "possession_home") else result.get("possession_home", 50)
+    pos_home = getattr(result, "possession_home", 50)
     pos_away = 100 - pos_home
-    shots_home = result.shots_home if hasattr(result, "shots_home") else result.get("shots_home", 0)
-    shots_away = result.shots_away if hasattr(result, "shots_away") else result.get("shots_away", 0)
-    mvp = result.mvp if hasattr(result, "mvp") else result.get("mvp", "—")
-    narrative = result.narrative if hasattr(result, "narrative") else result.get("narrative", "")
+    shots_home = getattr(result, "shots_on_target_home", getattr(result, "shots_home", 0))
+    shots_away = getattr(result, "shots_on_target_away", getattr(result, "shots_away", 0))
+    mvp = getattr(result, "mvp", "—")
+    narrative = getattr(result, "narrative_report", getattr(result, "narrative", ""))
 
     return (
         f"⚽ <b>ИТОГ МАТЧА</b> | Тур {current_round} | Сезон {season}\n"
@@ -375,33 +384,18 @@ async def cmd_simulate_match(message: Message) -> None:
         # Simulate
         result = await simulate_match(home_team, away_team, fast_mode)
 
-        # Normalise result to dict
-        if hasattr(result, "__dict__"):
-            res = result
-            home_goals = getattr(res, "home_goals", 0)
-            away_goals = getattr(res, "away_goals", 0)
-            scorers = getattr(res, "scorers", [])
-            yellow_cards = getattr(res, "yellow_cards", [])
-            red_cards = getattr(res, "red_cards", [])
-            injuries = getattr(res, "injuries", [])
-            narrative = getattr(res, "narrative", "")
-            possession_home = getattr(res, "possession_home", 50)
-            shots_home = getattr(res, "shots_home", 0)
-            shots_away = getattr(res, "shots_away", 0)
-            mvp = getattr(res, "mvp", "—")
-        else:
-            res = result
-            home_goals = res.get("home_goals", 0)
-            away_goals = res.get("away_goals", 0)
-            scorers = res.get("scorers", [])
-            yellow_cards = res.get("yellow_cards", [])
-            red_cards = res.get("red_cards", [])
-            injuries = res.get("injuries", [])
-            narrative = res.get("narrative", "")
-            possession_home = res.get("possession_home", 50)
-            shots_home = res.get("shots_home", 0)
-            shots_away = res.get("shots_away", 0)
-            mvp = res.get("mvp", "—")
+        # Extract match simulation fields
+        home_goals = getattr(result, "home_goals", 0)
+        away_goals = getattr(result, "away_goals", 0)
+        scorers = getattr(result, "scorers", [])
+        yellow_cards = getattr(result, "yellow_cards", [])
+        red_cards = getattr(result, "red_cards", [])
+        injuries = getattr(result, "injuries", [])
+        narrative = getattr(result, "narrative_report", getattr(result, "narrative", ""))
+        possession_home = getattr(result, "possession_home", 50)
+        shots_home = getattr(result, "shots_on_target_home", getattr(result, "shots_home", 0))
+        shots_away = getattr(result, "shots_on_target_away", getattr(result, "shots_away", 0))
+        mvp = getattr(result, "mvp", "—")
 
         # Apply match result
         await apply_match_result(
@@ -521,17 +515,17 @@ async def simulate_entire_current_round(bot: Any) -> tuple[int, str]:
 
             result = await simulate_match(home_team, away_team, fast_mode)
 
-            hg = getattr(result, "home_goals", 0) if hasattr(result, "home_goals") else result.get("home_goals", 0)
-            ag = getattr(result, "away_goals", 0) if hasattr(result, "away_goals") else result.get("away_goals", 0)
-            scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else (result.get("scorers", []) if isinstance(result, dict) else [])
-            yellow_cards = getattr(result, "yellow_cards", []) if hasattr(result, "yellow_cards") else result.get("yellow_cards", [])
-            red_cards = getattr(result, "red_cards", []) if hasattr(result, "red_cards") else result.get("red_cards", [])
-            injuries = getattr(result, "injuries", []) if hasattr(result, "injuries") else result.get("injuries", [])
-            narrative = getattr(result, "narrative_report", "") if hasattr(result, "narrative_report") else result.get("narrative_report", "")
-            possession_home = getattr(result, "possession_home", 50) if hasattr(result, "possession_home") else result.get("possession_home", 50)
-            shots_home = getattr(result, "shots_on_target_home", 0) if hasattr(result, "shots_on_target_home") else result.get("shots_on_target_home", 0)
-            shots_away = getattr(result, "shots_on_target_away", 0) if hasattr(result, "shots_on_target_away") else result.get("shots_on_target_away", 0)
-            mvp = getattr(result, "mvp", "—") if hasattr(result, "mvp") else result.get("mvp", "—")
+            hg = getattr(result, "home_goals", 0)
+            ag = getattr(result, "away_goals", 0)
+            scorers = getattr(result, "scorers", [])
+            yellow_cards = getattr(result, "yellow_cards", [])
+            red_cards = getattr(result, "red_cards", [])
+            injuries = getattr(result, "injuries", [])
+            narrative = getattr(result, "narrative_report", "") if hasattr(result, "narrative_report") else getattr(result, "narrative", "")
+            possession_home = getattr(result, "possession_home", 50)
+            shots_home = getattr(result, "shots_on_target_home", 0) if hasattr(result, "shots_on_target_home") else getattr(result, "shots_home", 0)
+            shots_away = getattr(result, "shots_on_target_away", 0) if hasattr(result, "shots_on_target_away") else getattr(result, "shots_away", 0)
+            mvp = getattr(result, "mvp", "—")
 
             await apply_match_result(
                 db,
@@ -599,17 +593,17 @@ async def simulate_entire_current_round(bot: Any) -> tuple[int, str]:
             for (match, home_club, away_club, home_team, away_team), result in zip(
                 ai_team_pairs, ai_results
             ):
-                hg = getattr(result, "home_goals", 0) if hasattr(result, "home_goals") else result.get("home_goals", 0)
-                ag = getattr(result, "away_goals", 0) if hasattr(result, "away_goals") else result.get("away_goals", 0)
-                scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else (result.get("scorers", []) if isinstance(result, dict) else [])
-                yellow_cards = getattr(result, "yellow_cards", []) if hasattr(result, "yellow_cards") else result.get("yellow_cards", [])
-                red_cards = getattr(result, "red_cards", []) if hasattr(result, "red_cards") else result.get("red_cards", [])
-                injuries = getattr(result, "injuries", []) if hasattr(result, "injuries") else result.get("injuries", [])
-                narrative = getattr(result, "narrative_report", "") if hasattr(result, "narrative_report") else result.get("narrative_report", "")
-                possession_home = getattr(result, "possession_home", 50) if hasattr(result, "possession_home") else result.get("possession_home", 50)
-                shots_home = getattr(result, "shots_on_target_home", 0) if hasattr(result, "shots_on_target_home") else result.get("shots_on_target_home", 0)
-                shots_away = getattr(result, "shots_on_target_away", 0) if hasattr(result, "shots_on_target_away") else result.get("shots_on_target_away", 0)
-                mvp = getattr(result, "mvp", "—") if hasattr(result, "mvp") else result.get("mvp", "—")
+                hg = getattr(result, "home_goals", 0)
+                ag = getattr(result, "away_goals", 0)
+                scorers = getattr(result, "scorers", [])
+                yellow_cards = getattr(result, "yellow_cards", [])
+                red_cards = getattr(result, "red_cards", [])
+                injuries = getattr(result, "injuries", [])
+                narrative = getattr(result, "narrative_report", "") if hasattr(result, "narrative_report") else getattr(result, "narrative", "")
+                possession_home = getattr(result, "possession_home", 50)
+                shots_home = getattr(result, "shots_on_target_home", 0) if hasattr(result, "shots_on_target_home") else getattr(result, "shots_home", 0)
+                shots_away = getattr(result, "shots_on_target_away", 0) if hasattr(result, "shots_on_target_away") else getattr(result, "shots_away", 0)
+                mvp = getattr(result, "mvp", "—")
 
                 await apply_match_result(
                     db,

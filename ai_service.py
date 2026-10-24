@@ -105,6 +105,101 @@ class MatchSimulationResult(BaseModel):
     mvp: str = "Игрок матча"
     narrative_report: str = "Напряжённый матч Ла Лиги."
 
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __getitem__(self, item: str) -> Any:
+        try:
+            return getattr(self, item)
+        except AttributeError:
+            raise KeyError(item)
+
+    @property
+    def scorers(self) -> List[dict]:
+        res: List[dict] = []
+        for s in (self.scorers_home or []):
+            d = s.model_dump() if hasattr(s, "model_dump") else (dict(s) if isinstance(s, dict) else {"name": str(s)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "home"
+            d["club"] = "home"
+            res.append(d)
+        for s in (self.scorers_away or []):
+            d = s.model_dump() if hasattr(s, "model_dump") else (dict(s) if isinstance(s, dict) else {"name": str(s)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "away"
+            d["club"] = "away"
+            res.append(d)
+        return res
+
+    @property
+    def yellow_cards(self) -> List[dict]:
+        res: List[dict] = []
+        for c in (self.yellow_cards_home or []):
+            d = c.model_dump() if hasattr(c, "model_dump") else (dict(c) if isinstance(c, dict) else {"name": str(c)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "home"
+            res.append(d)
+        for c in (self.yellow_cards_away or []):
+            d = c.model_dump() if hasattr(c, "model_dump") else (dict(c) if isinstance(c, dict) else {"name": str(c)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "away"
+            res.append(d)
+        return res
+
+    @property
+    def red_cards(self) -> List[dict]:
+        res: List[dict] = []
+        for c in (self.red_cards_home or []):
+            d = c.model_dump() if hasattr(c, "model_dump") else (dict(c) if isinstance(c, dict) else {"name": str(c)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "home"
+            res.append(d)
+        for c in (self.red_cards_away or []):
+            d = c.model_dump() if hasattr(c, "model_dump") else (dict(c) if isinstance(c, dict) else {"name": str(c)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "away"
+            res.append(d)
+        return res
+
+    @property
+    def injuries(self) -> List[dict]:
+        res: List[dict] = []
+        for i in (self.injuries_home or []):
+            d = i.model_dump() if hasattr(i, "model_dump") else (dict(i) if isinstance(i, dict) else {"name": str(i)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "home"
+            res.append(d)
+        for i in (self.injuries_away or []):
+            d = i.model_dump() if hasattr(i, "model_dump") else (dict(i) if isinstance(i, dict) else {"name": str(i)})
+            if "name" not in d and "player_name" in d:
+                d["name"] = d["player_name"]
+            d["side"] = "away"
+            res.append(d)
+        return res
+
+    @property
+    def narrative(self) -> str:
+        return self.narrative_report
+
+    @property
+    def shots_home(self) -> int:
+        return self.shots_on_target_home
+
+    @property
+    def shots_away(self) -> int:
+        return self.shots_on_target_away
+
+
+class BatchMatchSimulationResult(BaseModel):
+    matches: List[MatchSimulationResult] = Field(default_factory=list)
+
 
 class PlayerValuation(BaseModel):
     player_name: str
@@ -384,15 +479,17 @@ async def simulate_multiple_matches(matches: List[dict]) -> List[MatchSimulation
     try:
         response = await _generate_with_retry(
             prompt=prompt,
-            response_schema=List[MatchSimulationResult],
+            response_schema=BatchMatchSimulationResult,
             system_instruction="Ты спортивный симулятор Ла Лиги.",
         )
         data = _parse_json_response(response.text)
+        if isinstance(data, dict) and "matches" in data and isinstance(data["matches"], list):
+            return [MatchSimulationResult(**item) if isinstance(item, dict) else item for item in data["matches"]]
         if isinstance(data, list):
-            return [MatchSimulationResult(**item) for item in data]
+            return [MatchSimulationResult(**item) if isinstance(item, dict) else item for item in data]
         for k in ("matches", "results", "data"):
-            if isinstance(data, dict) and k in data:
-                return [MatchSimulationResult(**item) for item in data[k]]
+            if isinstance(data, dict) and k in data and isinstance(data[k], list):
+                return [MatchSimulationResult(**item) if isinstance(item, dict) else item for item in data[k]]
     except Exception as exc:
         logger.warning("Batch simulation fallback triggered: %s", exc)
 
