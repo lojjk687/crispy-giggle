@@ -523,7 +523,7 @@ async def simulate_entire_current_round(bot: Any) -> tuple[int, str]:
 
             hg = getattr(result, "home_goals", 0) if hasattr(result, "home_goals") else result.get("home_goals", 0)
             ag = getattr(result, "away_goals", 0) if hasattr(result, "away_goals") else result.get("away_goals", 0)
-            scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else result.get("scorers", [])
+            scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else (result.get("scorers", []) if isinstance(result, dict) else [])
             yellow_cards = getattr(result, "yellow_cards", []) if hasattr(result, "yellow_cards") else result.get("yellow_cards", [])
             red_cards = getattr(result, "red_cards", []) if hasattr(result, "red_cards") else result.get("red_cards", [])
             injuries = getattr(result, "injuries", []) if hasattr(result, "injuries") else result.get("injuries", [])
@@ -601,7 +601,7 @@ async def simulate_entire_current_round(bot: Any) -> tuple[int, str]:
             ):
                 hg = getattr(result, "home_goals", 0) if hasattr(result, "home_goals") else result.get("home_goals", 0)
                 ag = getattr(result, "away_goals", 0) if hasattr(result, "away_goals") else result.get("away_goals", 0)
-                scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else result.get("scorers", [])
+                scorers = getattr(result, "scorers", []) if hasattr(result, "scorers") else (result.get("scorers", []) if isinstance(result, dict) else [])
                 yellow_cards = getattr(result, "yellow_cards", []) if hasattr(result, "yellow_cards") else result.get("yellow_cards", [])
                 red_cards = getattr(result, "red_cards", []) if hasattr(result, "red_cards") else result.get("red_cards", [])
                 injuries = getattr(result, "injuries", []) if hasattr(result, "injuries") else result.get("injuries", [])
