@@ -1,0 +1,12 @@
+# Environment variables (contains bot token and API keys)
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite journal/temporary files and backups
+*.db-wal
+*.db-shm
+backup_*.db
