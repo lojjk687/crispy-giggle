@@ -1,0 +1,9 @@
+runtime: python312
+instance_class: F1
+
+env_variables:
+  TELEGRAM_BOT_TOKEN: "your_bot_token"
+  GEMINI_API_KEY: "your_gemini_api_key"
+  GROUP_CHAT_ID: "-1004417705143"
+  ADMIN_IDS: "7173085717"
+  DB_PATH: "laliga_dynasty.db"
